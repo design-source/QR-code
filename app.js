@@ -29,6 +29,12 @@ const state = {
 
 // DOM 로드 시 실행
 document.addEventListener("DOMContentLoaded", () => {
+    // 기존에 저장된 시드 목업 데이터가 있다면 강제로 지워 초기화합니다.
+    const statsStr = localStorage.getItem("audio_analytics_stats");
+    if (statsStr && (statsStr.includes("182") || statsStr.includes("156"))) {
+        localStorage.removeItem("audio_analytics_stats");
+    }
+
     // 로컬스토리지 저장 데이터 불러오기
     loadSavedSettings();
 
@@ -608,23 +614,6 @@ function generateCustomQR() {
 // [신규] 실시간 로컬 및 GA4 시각화 대시보드 모듈 (Chart.js 연동)
 // ==========================================================================
 
-// 초기 시드 데이터 (최초 실행 시 실감나는 데이터 렌더링용)
-const seedStats = {
-    plays: { 1: 182, 2: 125, 3: 84, 4: 156 },
-    milestones: {
-        1: { 25: 165, 50: 135, 75: 120, 100: 104 },
-        2: { 25: 115, 50: 98, 75: 85, 100: 78 },
-        3: { 25: 75, 50: 60, 75: 48, 100: 42 },
-        4: { 25: 145, 50: 128, 75: 110, 100: 95 }
-    },
-    listenTimes: { 
-        1: [100, 110, 120, 105, 130, 95], 
-        2: [140, 150, 160, 130, 145], 
-        3: [120, 110, 105, 130], 
-        4: [170, 180, 165, 190, 160] 
-    }
-};
-
 const emptyStats = {
     plays: { 1: 0, 2: 0, 3: 0, 4: 0 },
     milestones: {
@@ -639,13 +628,12 @@ const emptyStats = {
 let playsChartInstance = null;
 let retentionChartInstance = null;
 
-// 로컬 스토리지 데이터 로드 및 시드 초기화
+// 로컬 스토리지 데이터 로드 및 초기화 (목업 시드 데이터 없이 0부터 시작)
 function getLocalStats() {
     const statsStr = localStorage.getItem("audio_analytics_stats");
     if (!statsStr) {
-        // 데이터가 없으면 시드 데이터를 기본으로 적재
-        localStorage.setItem("audio_analytics_stats", JSON.stringify(seedStats));
-        return seedStats;
+        localStorage.setItem("audio_analytics_stats", JSON.stringify(emptyStats));
+        return emptyStats;
     }
     return JSON.parse(statsStr);
 }
