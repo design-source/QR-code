@@ -1,7 +1,7 @@
 // 어플리케이션 상태 관리
 const state = {
-    customDomain: "",
-    gaMeasurementId: "",
+    customDomain: "https://design-source.github.io/QR-code",
+    gaMeasurementId: "G-E6NHSEPSGD",
     currentTrack: 1,
     audioTracks: {
         1: {

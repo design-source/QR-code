@@ -13,12 +13,13 @@
     <!-- QR 코드 생성 라이브러리 (로컬 버전) -->
     <script src="qrcode.min.js"></script>
     
-    <!-- Google Analytics (GA4) 비동기 스크립트 로더 -->
-    <script async id="google-analytics-script"></script>
+    <!-- Google Analytics (GA4) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-E6NHSEPSGD"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
+        gtag('config', 'G-E6NHSEPSGD');
     </script>
 </head>
 <body>
@@ -232,12 +233,12 @@
                                 <div class="form-group">
                                     <label>연결 주소 타입 설정</label>
                                     <div class="radio-group">
-                                        <label class="radio-label disabled-label" id="hosting-radio-container">
-                                            <input type="radio" name="url-type" value="hosting" id="radio-hosting" disabled>
+                                        <label class="radio-label" id="hosting-radio-container">
+                                            <input type="radio" name="url-type" value="hosting" id="radio-hosting" checked>
                                             <span>웹 호스팅 모드 (청취 시간 추적용 - 권장)</span>
                                         </label>
                                         <label class="radio-label">
-                                            <input type="radio" name="url-type" value="preview" checked>
+                                            <input type="radio" name="url-type" value="preview">
                                             <span>구글 드라이브 미리보기 플레이어 (/preview)</span>
                                         </label>
                                     </div>
