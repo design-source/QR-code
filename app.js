@@ -60,19 +60,26 @@ function loadSavedSettings() {
     const savedDomain = localStorage.getItem("customDomain");
     const savedGaId = localStorage.getItem("gaMeasurementId");
 
+    // 저장된 설정이 있으면 덮어쓰고, 없으면 기본값 유지 및 입력창 표시
     if (savedDomain) {
         state.customDomain = savedDomain;
-        const domainInput = document.getElementById("custom-domain-input");
-        if (domainInput) domainInput.value = savedDomain;
+    }
+    const domainInput = document.getElementById("custom-domain-input");
+    if (domainInput) {
+        domainInput.value = state.customDomain;
     }
 
     if (savedGaId) {
         state.gaMeasurementId = savedGaId;
-        const gaInput = document.getElementById("ga-id-input");
-        if (gaInput) gaInput.value = savedGaId;
-        
-        // 구글 애널리틱스 트래커 동적 초기화
-        initializeGA4(savedGaId);
+    }
+    const gaInput = document.getElementById("ga-id-input");
+    if (gaInput) {
+        gaInput.value = state.gaMeasurementId;
+    }
+    
+    // 최종 확정된 ID로 구글 애널리틱스 트래커 가동
+    if (state.gaMeasurementId) {
+        initializeGA4(state.gaMeasurementId);
     }
 }
 
