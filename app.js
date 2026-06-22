@@ -193,7 +193,7 @@ function runMobilePlayer(trackNum) {
     });
 }
 
-// 3. 정밀 통계 추적용 GA4 이벤트 보고 트리거
+// 3. 정밀 통계 추적용 GA4 이벤트 보고 및 로컬 저장소 연동 트리거
 const sentMilestones = {};
 function trackAnalyticsMilestones(trackNum, currentTime, duration) {
     if (!duration || duration <= 0) return;
@@ -209,31 +209,46 @@ function trackAnalyticsMilestones(trackNum, currentTime, duration) {
     // 재생 시작 이벤트 (첫 구동 시 1회 전송)
     if (currentTime > 0.5 && !sentMilestones[trackNum].has(0)) {
         sentMilestones[trackNum].add(0);
+        
+        // 1. GA4 이벤트 보고
         sendGA4Event("audio_play", {
             'track': `Track 0${trackNum}`,
             'track_title': trackData.title
         });
+        
+        // 2. 로컬 통계 데이터 저장
+        recordLocalPlay(trackNum);
     }
 
     // 마일스톤 구간 분석 (25%, 50%, 75% 이탈 지점 집계)
     milestones.slice(0, 3).forEach(stone => {
         if (percent >= stone && !sentMilestones[trackNum].has(stone)) {
             sentMilestones[trackNum].add(stone);
+            
+            // 1. GA4 이벤트 보고
             sendGA4Event(`audio_progress_${stone}`, {
                 'track': `Track 0${trackNum}`,
                 'track_title': trackData.title,
                 'progress_percent': stone
             });
+            
+            // 2. 로컬 통계 데이터 저장
+            recordLocalMilestone(trackNum, stone);
         }
     });
 
     // 완독 이벤트 (재생 완료 시)
     if (percent >= 99 && !sentMilestones[trackNum].has(100)) {
         sentMilestones[trackNum].add(100);
+        
+        // 1. GA4 이벤트 보고
         sendGA4Event("audio_complete", {
             'track': `Track 0${trackNum}`,
             'track_title': trackData.title
         });
+        
+        // 2. 로컬 통계 데이터 저장 (완독 처리 및 듣는 시간 기록)
+        recordLocalMilestone(trackNum, 100, duration);
     }
 }
 
@@ -258,6 +273,7 @@ function runAdminDashboard() {
     initAdminAudioPlayers();
     initQRGenerator();
     initDomainConfig();
+    initAnalyticsDashboard(); // 신규 추가: 실시간 차트 대시보드
 }
 
 // 관리자 네비게이션
@@ -300,6 +316,9 @@ function initAdminAudioPlayers() {
                 const percent = (audio.currentTime / audio.duration) * 100;
                 progressBar.style.width = `${percent}%`;
                 timeDisplay.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+                
+                // 관리자 대시보드에서 재생 시에도 로컬 통계 갱신 및 차트 업데이트
+                trackAnalyticsMilestones(trackNum, audio.currentTime, audio.duration);
             }
         });
 
@@ -584,3 +603,254 @@ function generateCustomQR() {
 
     }, 150);
 }
+
+// ==========================================================================
+// [신규] 실시간 로컬 및 GA4 시각화 대시보드 모듈 (Chart.js 연동)
+// ==========================================================================
+
+// 초기 시드 데이터 (최초 실행 시 실감나는 데이터 렌더링용)
+const seedStats = {
+    plays: { 1: 182, 2: 125, 3: 84, 4: 156 },
+    milestones: {
+        1: { 25: 165, 50: 135, 75: 120, 100: 104 },
+        2: { 25: 115, 50: 98, 75: 85, 100: 78 },
+        3: { 25: 75, 50: 60, 75: 48, 100: 42 },
+        4: { 25: 145, 50: 128, 75: 110, 100: 95 }
+    },
+    listenTimes: { 
+        1: [100, 110, 120, 105, 130, 95], 
+        2: [140, 150, 160, 130, 145], 
+        3: [120, 110, 105, 130], 
+        4: [170, 180, 165, 190, 160] 
+    }
+};
+
+const emptyStats = {
+    plays: { 1: 0, 2: 0, 3: 0, 4: 0 },
+    milestones: {
+        1: { 25: 0, 50: 0, 75: 0, 100: 0 },
+        2: { 25: 0, 50: 0, 75: 0, 100: 0 },
+        3: { 25: 0, 50: 0, 75: 0, 100: 0 },
+        4: { 25: 0, 50: 0, 75: 0, 100: 0 }
+    },
+    listenTimes: { 1: [], 2: [], 3: [], 4: [] }
+};
+
+let playsChartInstance = null;
+let retentionChartInstance = null;
+
+// 로컬 스토리지 데이터 로드 및 시드 초기화
+function getLocalStats() {
+    const statsStr = localStorage.getItem("audio_analytics_stats");
+    if (!statsStr) {
+        // 데이터가 없으면 시드 데이터를 기본으로 적재
+        localStorage.setItem("audio_analytics_stats", JSON.stringify(seedStats));
+        return seedStats;
+    }
+    return JSON.parse(statsStr);
+}
+
+// 로컬 재생 횟수 갱신
+function recordLocalPlay(trackNum) {
+    const stats = getLocalStats();
+    stats.plays[trackNum] = (stats.plays[trackNum] || 0) + 1;
+    localStorage.setItem("audio_analytics_stats", JSON.stringify(stats));
+    
+    // 차트 화면 열려있으면 갱신
+    if (document.getElementById("analytics-section") && !document.getElementById("analytics-section").classList.contains("hide")) {
+        updateAnalyticsUI();
+    }
+}
+
+// 로컬 마일스톤 및 청취 시간 갱신
+function recordLocalMilestone(trackNum, stone, duration = 0) {
+    const stats = getLocalStats();
+    if (!stats.milestones[trackNum]) {
+        stats.milestones[trackNum] = { 25: 0, 50: 0, 75: 0, 100: 0 };
+    }
+    stats.milestones[trackNum][stone] = (stats.milestones[trackNum][stone] || 0) + 1;
+
+    // 완독 시 평균 청취 시간 계산용 누적
+    if (stone === 100 && duration > 0) {
+        if (!stats.listenTimes[trackNum]) stats.listenTimes[trackNum] = [];
+        stats.listenTimes[trackNum].push(duration);
+    }
+
+    localStorage.setItem("audio_analytics_stats", JSON.stringify(stats));
+
+    // 차트 갱신
+    if (document.getElementById("analytics-section") && !document.getElementById("analytics-section").classList.contains("hide")) {
+        updateAnalyticsUI();
+    }
+}
+
+// 대시보드 차트 & 수치 바인딩 초기화
+function initAnalyticsDashboard() {
+    const btnReset = document.getElementById("btn-reset-analytics");
+    if (btnReset) {
+        btnReset.addEventListener("click", () => {
+            if (confirm("정말 테스트 세션 통계를 초기화하시겠습니까? 데이터가 0으로 리셋됩니다.")) {
+                localStorage.setItem("audio_analytics_stats", JSON.stringify(emptyStats));
+                updateAnalyticsUI();
+            }
+        });
+    }
+
+    // 탭 클릭하여 대시보드 들어올 때 차트 다시 그림 (크기 조정 이슈 예방)
+    document.getElementById("nav-analytics").addEventListener("click", () => {
+        setTimeout(updateAnalyticsUI, 100);
+    });
+
+    // 최초 UI 렌더링
+    updateAnalyticsUI();
+}
+
+// 데이터 수치 계산 및 Chart.js 캔버스 렌더링
+function updateAnalyticsUI() {
+    const stats = getLocalStats();
+
+    // 1. 종합 요약 수치 계산
+    let totalPlays = 0;
+    let totalCompletionCount = 0;
+    let allTimes = [];
+
+    for (let t = 1; t <= 4; t++) {
+        totalPlays += stats.plays[t] || 0;
+        totalCompletionCount += stats.milestones[t]?.[100] || 0;
+        if (stats.listenTimes[t]) {
+            allTimes = allTimes.concat(stats.listenTimes[t]);
+        }
+    }
+
+    // 평균 청취 시간 계산
+    let avgTimeText = "0초";
+    if (allTimes.length > 0) {
+        const sumTime = allTimes.reduce((a, b) => a + b, 0);
+        const avgSecs = sumTime / allTimes.length;
+        avgTimeText = avgSecs >= 60 
+            ? `${Math.floor(avgSecs / 60)}분 ${Math.floor(avgSecs % 60)}초` 
+            : `${Math.floor(avgSecs)}초`;
+    }
+
+    // 평균 완독률 계산 (완독수 / 총재생수)
+    let completionRateText = "0%";
+    if (totalPlays > 0) {
+        const rate = (totalCompletionCount / totalPlays) * 100;
+        completionRateText = `${rate.toFixed(1)}%`;
+    }
+
+    // DOM 바인딩
+    document.getElementById("stat-total-plays").textContent = `${totalPlays.toLocaleString()} 회`;
+    document.getElementById("stat-avg-time").textContent = avgTimeText;
+    document.getElementById("stat-completion-rate").textContent = completionRateText;
+
+    // 2. Chart 1: 트랙별 재생수 차트 (Bar Chart)
+    const ctxPlays = document.getElementById("chart-plays").getContext("2d");
+    if (playsChartInstance) {
+        playsChartInstance.destroy();
+    }
+
+    playsChartInstance = new Chart(ctxPlays, {
+        type: 'bar',
+        data: {
+            labels: ['트랙 01', '트랙 02', '트랙 03', '트랙 04'],
+            datasets: [{
+                label: '재생 횟수',
+                data: [stats.plays[1], stats.plays[2], stats.plays[3], stats.plays[4]],
+                backgroundColor: [
+                    'rgba(214, 175, 55, 0.75)',  // 금빛 황동
+                    'rgba(59, 122, 87, 0.75)',   // 옥빛 녹색
+                    'rgba(192, 64, 0, 0.75)',    // 단청 주홍
+                    'rgba(82, 164, 119, 0.75)'   // 밝은 비취
+                ],
+                borderColor: [
+                    '#d4af37', '#3b7a57', '#c04000', '#52a477'
+                ],
+                borderWidth: 1.5,
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: '#2c3842' },
+                    ticks: { color: '#9cb1c0' }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#9cb1c0' }
+                }
+            }
+        }
+    });
+
+    // 3. Chart 2: 청취 유지율 깔때기 분석 (Line/Area Chart)
+    // 각 마일스톤 도달 비율 평균 계산 (시작=100% -> 25% -> 50% -> 75% -> 완료=100%)
+    let pct25 = 0, pct50 = 0, pct75 = 0, pct100 = 0;
+    if (totalPlays > 0) {
+        let sum25 = 0, sum50 = 0, sum75 = 0, sum100 = 0;
+        for (let t = 1; t <= 4; t++) {
+            sum25 += stats.milestones[t]?.[25] || 0;
+            sum50 += stats.milestones[t]?.[50] || 0;
+            sum75 += stats.milestones[t]?.[75] || 0;
+            sum100 += stats.milestones[t]?.[100] || 0;
+        }
+        pct25 = (sum25 / totalPlays) * 100;
+        pct50 = (sum50 / totalPlays) * 100;
+        pct75 = (sum75 / totalPlays) * 100;
+        pct100 = (sum100 / totalPlays) * 100;
+    }
+
+    const ctxRetention = document.getElementById("chart-retention").getContext("2d");
+    if (retentionChartInstance) {
+        retentionChartInstance.destroy();
+    }
+
+    retentionChartInstance = new Chart(ctxRetention, {
+        type: 'line',
+        data: {
+            labels: ['시작 (0%)', '구간 1 (25%)', '중간 (50%)', '구간 3 (75%)', '완료 (100%)'],
+            datasets: [{
+                label: '유지율 (%)',
+                data: [totalPlays > 0 ? 100 : 0, pct25, pct50, pct75, pct100],
+                borderColor: '#d4af37',
+                backgroundColor: 'rgba(214, 175, 55, 0.12)',
+                fill: true,
+                tension: 0.38,
+                borderWidth: 3,
+                pointBackgroundColor: '#3b7a57',
+                pointBorderColor: '#f0f4f8',
+                pointRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    min: 0,
+                    max: 100,
+                    grid: { color: '#2c3842' },
+                    ticks: { 
+                        color: '#9cb1c0',
+                        callback: function(value) { return value + '%'; }
+                    }
+                },
+                x: {
+                    grid: { color: '#2c3842' },
+                    ticks: { color: '#9cb1c0' }
+                }
+            }
+        }
+    });
+}
+

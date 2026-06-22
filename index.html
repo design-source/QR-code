@@ -21,6 +21,8 @@
         gtag('js', new Date());
         gtag('config', 'G-E6NHSEPSGD');
     </script>
+    <!-- 실시간 차트 렌더링 라이브러리 (Chart.js) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <!-- [1] 관리자 대시보드 화면 뷰 -->
@@ -300,29 +302,66 @@
                     </div>
                 </section>
 
-                <!-- 청취 통계 추적 섹션 (GA4 설명형 대시보드) -->
+                <!-- 청취 통계 추적 섹션 (실시간 Chart.js 시뮬레이터 및 GA4 연동) -->
                 <section id="analytics-section" class="content-section hide">
                     <div class="section-header">
-                        <h2>청취 분석 통계 (GA4)</h2>
-                        <p>GA4를 연동하면 구글 애널리틱스 대시보드에서 다음과 같이 상세한 데이터를 확인하실 수 있습니다.</p>
+                        <h2>실시간 청취 분석 대시보드</h2>
+                        <p>실제 로컬 기기에서의 재생 통계(LocalStorage 누적값)와 구글 애널리틱스 4(GA4) 연동 지표를 실시간 시각화합니다.</p>
                     </div>
 
-                    <!-- 종합 통계 카드 (예시 데이터) -->
+                    <!-- 종합 통계 카드 (JS 동적 바인딩) -->
                     <div class="stat-summary-row">
                         <div class="stat-card">
-                            <div class="stat-title">총 스캔 횟수</div>
-                            <div class="stat-value">1,482 회</div>
-                            <div class="stat-desc">실시간 QR 스캔 감지 누적값</div>
+                            <div class="stat-title">총 재생 횟수</div>
+                            <div class="stat-value" id="stat-total-plays">0 회</div>
+                            <div class="stat-desc">모든 트랙의 플레이(Play) 누적</div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-title">평균 청취 지속 시간</div>
-                            <div class="stat-value">2분 14초</div>
-                            <div class="stat-desc">사용자 평균 재생 유지 시간</div>
+                            <div class="stat-title">평균 청취 시간</div>
+                            <div class="stat-value" id="stat-avg-time">0초</div>
+                            <div class="stat-desc">트랙당 평균 재생 유지 시간</div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-title">완독률 (100% 청취)</div>
-                            <div class="stat-value">64.8%</div>
+                            <div class="stat-title">평균 완독률 (100% 완료)</div>
+                            <div class="stat-value" id="stat-completion-rate">0%</div>
                             <div class="stat-desc">이탈 없이 끝까지 들은 비율</div>
+                        </div>
+                    </div>
+
+                    <!-- 차트 그리드 레이아웃 -->
+                    <div class="config-grid">
+                        <!-- 차트 1: 트랙별 재생수 -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>📊 트랙별 누적 재생수</h3>
+                            </div>
+                            <div class="card-body" style="background-color: #11161a; min-height: 280px; display: flex; align-items: center; justify-content: center;">
+                                <canvas id="chart-plays" style="max-height: 260px;"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- 차트 2: 구간별 청취 유지율 -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>📈 청취 유지율 분석 (밀리초 단위)</h3>
+                            </div>
+                            <div class="card-body" style="background-color: #11161a; min-height: 280px; display: flex; align-items: center; justify-content: center;">
+                                <canvas id="chart-retention" style="max-height: 260px;"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 데이터 제어 및 외부 링크 패널 -->
+                    <div class="card config-card" style="border-left: 4px solid var(--gold-bronze); margin-bottom: 2.5rem;">
+                        <div class="card-header">
+                            <h3>⚙️ 분석 데이터 관리 및 공식 애널리틱스</h3>
+                        </div>
+                        <div class="card-body" style="display: flex; gap: 1.2rem; align-items: center; flex-wrap: wrap;">
+                            <button type="button" class="btn btn-primary" id="btn-reset-analytics">🔄 로컬 통계 데이터 초기화</button>
+                            <a href="https://analytics.google.com/" target="_blank" class="btn btn-success" id="btn-go-ga4" style="text-decoration: none;">🌐 구글 애널리틱스 공식 대시보드 바로가기</a>
+                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0; flex-grow: 1;">
+                                * 로컬 통계는 테스트용으로 브라우저에 실시간 누적되며, 실제 불특정 다수의 전역 청취 통계는 공식 GA4 대시보드에서 안전하게 관리됩니다.
+                            </p>
                         </div>
                     </div>
 
@@ -332,9 +371,6 @@
                             <h3>🔍 수집되는 구글 애널리틱스 주요 이벤트 목록</h3>
                         </div>
                         <div class="card-body">
-                            <p class="config-desc" style="margin-bottom: 1.5rem;">
-                                본 웹앱에는 모바일 스캔 시 구글 애널리틱스 4(GA4)로 다음과 같은 맞춤형 이벤트가 자동으로 보고되도록 내장되어 있습니다. 구글 애널리틱스 사이트의 [이벤트] 탭에서 바로 수치를 확인해 보세요.
-                            </p>
                             <table class="data-table">
                                 <thead>
                                     <tr>
