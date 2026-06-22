@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>국가유산 오디오 가이드 & QR 코드 관리 시스템</title>
+    <!-- SEO 및 메타 데이터 -->
+    <meta name="description" content="국가유산 오디오 가이드 재생용 QR 코드를 맞춤형으로 제작하고 청취율을 분석하는 스마트 관리 시스템">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- QR 코드 생성 라이브러리 (로컬 버전) -->
+    <script src="qrcode.min.js"></script>
+    
+    <!-- Google Analytics (GA4) 비동기 스크립트 로더 -->
+    <script async id="google-analytics-script"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+    </script>
+</head>
+<body>
+    <!-- [1] 관리자 대시보드 화면 뷰 -->
+    <div id="admin-dashboard-view" class="app-container">
+        <!-- 사이드바 -->
+        <aside class="sidebar">
+            <div class="brand">
+                <span class="emblem">⚜️</span>
+                <h1 id="app-title">국가유산 QR 시스템</h1>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="#dashboard-section" class="nav-item active" id="nav-dashboard">
+                    <span class="icon">📊</span> 대시보드 홈
+                </a>
+                <a href="#qr-generator-section" class="nav-item" id="nav-generator">
+                    <span class="icon">🔲</span> QR 코드 생성기
+                </a>
+                <a href="#analytics-section" class="nav-item" id="nav-analytics">
+                    <span class="icon">📈</span> 청취 통계 추적 (GA4)
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <p>국가유산 QR 코드 프로젝트</p>
+                <span class="version">v1.1.0</span>
+            </div>
+        </aside>
+
+        <!-- 메인 콘텐츠 영역 -->
+        <main class="main-content">
+            <!-- 탑 헤더 -->
+            <header class="top-bar">
+                <div class="user-welcome">
+                    <span class="greeting">안녕하세요, 관리자님</span>
+                </div>
+                <div class="status-indicator">
+                    <span class="status-dot online"></span>
+                    <span class="status-text">GitHub Pages 호스팅 모드</span>
+                </div>
+            </header>
+
+            <div class="content-wrapper">
+                <!-- 알림 배너 (구글 드라이브 대체 안내) -->
+                <section class="info-banner" id="guide-banner">
+                    <div class="banner-icon">🚀</div>
+                    <div class="banner-body">
+                        <h3>GitHub Pages 호스팅 & 오디오 직접 전송 모드 적용됨</h3>
+                        <p>
+                            모바일 차단 문제를 예방하기 위해 오디오 파일을 프로젝트 내부 <code>audio/</code> 폴더에 배치했습니다. 
+                            본 솔루션을 GitHub Pages에 업로드하면 모바일 기기에서 100% 끊김 없이 오디오가 재생되고 청취 통계가 수집됩니다.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- 대시보드 홈 및 설정 -->
+                <section id="dashboard-section" class="content-section">
+                    <div class="section-header">
+                        <h2>오디오 가이드 허브</h2>
+                        <p>제공된 4개의 국가유산 오디오 가이드 목록입니다. 로컬에 저장된 음원을 재생합니다.</p>
+                    </div>
+
+                    <!-- 설정 카드 그리드 -->
+                    <div class="config-grid">
+                        <!-- 호스팅 설정 (사용자 정의 도메인 입력 - 통계 추적용) -->
+                        <div class="card config-card">
+                            <div class="card-header">
+                                <span class="card-icon">🔗</span>
+                                <h3>통계 추적용 GitHub Pages 도메인 설정</h3>
+                            </div>
+                            <div class="card-body">
+                                <p class="config-desc">
+                                    GitHub Pages 활성화 후 부여받은 주소(예: <code>https://username.github.io/repo-name</code>)를 입력하세요. QR 코드가 해당 주소를 바라보게 자동 업데이트됩니다.
+                                </p>
+                                <div class="form-group inline-form">
+                                    <label for="custom-domain-input">호스팅 URL:</label>
+                                    <input type="url" id="custom-domain-input" placeholder="예: https://username.github.io/heritage-guide" value="">
+                                    <button type="button" class="btn btn-primary" id="btn-apply-domain">도메인 적용</button>
+                                </div>
+                                <div id="domain-status-msg" class="status-msg hide">도메인이 성공적으로 적용되었습니다!</div>
+                            </div>
+                        </div>
+
+                        <!-- GA4 측정 ID 설정 -->
+                        <div class="card config-card ga-config">
+                            <div class="card-header">
+                                <span class="card-icon">📊</span>
+                                <h3>구글 애널리틱스(GA4) 측정 ID 연동</h3>
+                            </div>
+                            <div class="card-body">
+                                <p class="config-desc">
+                                    무료 구글 애널리틱스(GA4)에서 발급받은 <strong>측정 ID (Measurement ID)</strong>를 입력하면, 실시간으로 청취자의 재생 완료율과 평균 대기 시간을 분석합니다.
+                                </p>
+                                <div class="form-group inline-form">
+                                    <label for="ga-id-input">측정 ID (G-):</label>
+                                    <input type="text" id="ga-id-input" placeholder="G-XXXXXXXXXX" class="form-control" style="max-width: 250px;">
+                                    <button type="button" class="btn btn-success" id="btn-apply-ga">GA4 연동</button>
+                                </div>
+                                <div id="ga-status-msg" class="status-msg hide">GA4 측정 ID가 연동되었습니다! (스캔 시 추적 시작)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 오디오 가이드 그리드 (로컬 audio/ 폴더 경로 지정) -->
+                    <div class="audio-grid">
+                        <!-- Audio 1 -->
+                        <div class="card audio-card" data-track="1">
+                            <div class="card-badge">TRACK 01</div>
+                            <div class="audio-info">
+                                <h3 class="audio-title">국가유산 오디오 가이드 #1</h3>
+                                <p class="audio-filename">audio/audio_1.mp3</p>
+                            </div>
+                            <div class="custom-player">
+                                <audio id="audio-element-1" src="audio/audio_1.mp3" preload="metadata"></audio>
+                                <div class="player-controls">
+                                    <button class="btn-play-pause" id="play-btn-1" onclick="togglePlay(1)">▶</button>
+                                    <div class="progress-container" onclick="seekAudio(event, 1)">
+                                        <div class="progress-bar" id="progress-1"></div>
+                                    </div>
+                                    <span class="time-display" id="time-1">00:00 / 00:00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Audio 2 -->
+                        <div class="card audio-card" data-track="2">
+                            <div class="card-badge">TRACK 02</div>
+                            <div class="audio-info">
+                                <h3 class="audio-title">국가유산 오디오 가이드 #2</h3>
+                                <p class="audio-filename">audio/audio_2.mp3</p>
+                            </div>
+                            <div class="custom-player">
+                                <audio id="audio-element-2" src="audio/audio_2.mp3" preload="metadata"></audio>
+                                <div class="player-controls">
+                                    <button class="btn-play-pause" id="play-btn-2" onclick="togglePlay(2)">▶</button>
+                                    <div class="progress-container" onclick="seekAudio(event, 2)">
+                                        <div class="progress-bar" id="progress-2"></div>
+                                    </div>
+                                    <span class="time-display" id="time-2">00:00 / 00:00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Audio 3 -->
+                        <div class="card audio-card" data-track="3">
+                            <div class="card-badge">TRACK 03</div>
+                            <div class="audio-info">
+                                <h3 class="audio-title">국가유산 오디오 가이드 #3</h3>
+                                <p class="audio-filename">audio/audio_3.mp3</p>
+                            </div>
+                            <div class="custom-player">
+                                <audio id="audio-element-3" src="audio/audio_3.mp3" preload="metadata"></audio>
+                                <div class="player-controls">
+                                    <button class="btn-play-pause" id="play-btn-3" onclick="togglePlay(3)">▶</button>
+                                    <div class="progress-container" onclick="seekAudio(event, 3)">
+                                        <div class="progress-bar" id="progress-3"></div>
+                                    </div>
+                                    <span class="time-display" id="time-3">00:00 / 00:00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Audio 4 -->
+                        <div class="card audio-card" data-track="4">
+                            <div class="card-badge">TRACK 04</div>
+                            <div class="audio-info">
+                                <h3 class="audio-title">국가유산 오디오 가이드 #4</h3>
+                                <p class="audio-filename">audio/audio_4.mp3</p>
+                            </div>
+                            <div class="custom-player">
+                                <audio id="audio-element-4" src="audio/audio_4.mp3" preload="metadata"></audio>
+                                <div class="player-controls">
+                                    <button class="btn-play-pause" id="play-btn-4" onclick="togglePlay(4)">▶</button>
+                                    <div class="progress-container" onclick="seekAudio(event, 4)">
+                                        <div class="progress-bar" id="progress-4"></div>
+                                    </div>
+                                    <span class="time-display" id="time-4">00:00 / 00:00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- QR 코드 생성기 섹션 -->
+                <section id="qr-generator-section" class="content-section hide">
+                    <div class="section-header">
+                        <h2>커스텀 QR 코드 디자인 생성기</h2>
+                        <p>각 오디오에 맞는 QR 코드를 커스터마이징하고 고해상도 PNG 파일로 저장합니다.</p>
+                    </div>
+
+                    <div class="generator-layout">
+                        <!-- 디자인 옵션 설정 패널 -->
+                        <div class="card control-card">
+                            <div class="card-header">
+                                <h3>🎨 디자인 옵션</h3>
+                            </div>
+                            <div class="card-body">
+                                <!-- 대상 오디오 트랙 선택 -->
+                                <div class="form-group">
+                                    <label for="track-select">대상 오디오 선택</label>
+                                    <select id="track-select" class="form-control">
+                                        <option value="1">트랙 01 (국가유산 가이드 #1)</option>
+                                        <option value="2">트랙 02 (국가유산 가이드 #2)</option>
+                                        <option value="3">트랙 03 (국가유산 가이드 #3)</option>
+                                        <option value="4">트랙 04 (국가유산 가이드 #4)</option>
+                                    </select>
+                                </div>
+
+                                <!-- QR 대상 URL 타입 선택 -->
+                                <div class="form-group">
+                                    <label>연결 주소 타입 설정</label>
+                                    <div class="radio-group">
+                                        <label class="radio-label disabled-label" id="hosting-radio-container">
+                                            <input type="radio" name="url-type" value="hosting" id="radio-hosting" disabled>
+                                            <span>웹 호스팅 모드 (청취 시간 추적용 - 권장)</span>
+                                        </label>
+                                        <label class="radio-label">
+                                            <input type="radio" name="url-type" value="preview" checked>
+                                            <span>구글 드라이브 미리보기 플레이어 (/preview)</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- QR 코드 색상 설정 -->
+                                <div class="form-row">
+                                    <div class="form-group half">
+                                        <label for="qr-color-fg">QR 코드 색상</label>
+                                        <div class="color-picker-wrapper">
+                                            <input type="color" id="qr-color-fg" value="#1a252c">
+                                        </div>
+                                    </div>
+                                    <div class="form-group half">
+                                        <label for="qr-color-bg">배경 색상</label>
+                                        <div class="color-picker-wrapper">
+                                            <input type="color" id="qr-color-bg" value="#ffffff">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 하단 라벨 텍스트 추가 -->
+                                <div class="form-group">
+                                    <label for="qr-label-input">QR 코드 하단 라벨 문구</label>
+                                    <input type="text" id="qr-label-input" class="form-control" placeholder="예: 스캔하여 가이드 듣기" value="국가유산 오디오 가이드">
+                                </div>
+
+                                <!-- 로고 삽입 여부 -->
+                                <div class="form-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="insert-logo" checked>
+                                        <span>중앙 플레이 헤드폰 아이콘 삽입 (권장)</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 미리보기 및 다운로드 패널 -->
+                        <div class="card preview-card">
+                            <div class="card-header">
+                                <h3>👀 실시간 QR 미리보기</h3>
+                            </div>
+                            <div class="card-body preview-body">
+                                <div class="qr-result-container">
+                                    <div id="qrcode-display"></div>
+                                    <canvas id="qr-download-canvas" width="500" height="580"></canvas>
+                                </div>
+                                <div class="qr-target-info">
+                                    <strong>현재 연결 주소:</strong>
+                                    <span id="current-qr-target">https://drive.google.com/file/d/1N5FzknWvcMo4zoxlpbFPWMwGVHjYUeRx/preview</span>
+                                </div>
+                                <div class="button-group">
+                                    <button class="btn btn-success btn-large" id="btn-download-qr">
+                                        📥 고해상도 PNG 다운로드
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 청취 통계 추적 섹션 (GA4 설명형 대시보드) -->
+                <section id="analytics-section" class="content-section hide">
+                    <div class="section-header">
+                        <h2>청취 분석 통계 (GA4)</h2>
+                        <p>GA4를 연동하면 구글 애널리틱스 대시보드에서 다음과 같이 상세한 데이터를 확인하실 수 있습니다.</p>
+                    </div>
+
+                    <!-- 종합 통계 카드 (예시 데이터) -->
+                    <div class="stat-summary-row">
+                        <div class="stat-card">
+                            <div class="stat-title">총 스캔 횟수</div>
+                            <div class="stat-value">1,482 회</div>
+                            <div class="stat-desc">실시간 QR 스캔 감지 누적값</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-title">평균 청취 지속 시간</div>
+                            <div class="stat-value">2분 14초</div>
+                            <div class="stat-desc">사용자 평균 재생 유지 시간</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-title">완독률 (100% 청취)</div>
+                            <div class="stat-value">64.8%</div>
+                            <div class="stat-desc">이탈 없이 끝까지 들은 비율</div>
+                        </div>
+                    </div>
+
+                    <!-- GA4 수집 이벤트 가이드 -->
+                    <div class="card config-card" style="border-left: 4px solid var(--jade-green);">
+                        <div class="card-header">
+                            <h3>🔍 수집되는 구글 애널리틱스 주요 이벤트 목록</h3>
+                        </div>
+                        <div class="card-body">
+                            <p class="config-desc" style="margin-bottom: 1.5rem;">
+                                본 웹앱에는 모바일 스캔 시 구글 애널리틱스 4(GA4)로 다음과 같은 맞춤형 이벤트가 자동으로 보고되도록 내장되어 있습니다. 구글 애널리틱스 사이트의 [이벤트] 탭에서 바로 수치를 확인해 보세요.
+                            </p>
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>이벤트명 (Event Name)</th>
+                                        <th>수집 트리거</th>
+                                        <th>분석 목적</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>audio_scan</code></td>
+                                        <td>QR 코드를 스캔하여 오디오 재생 페이지에 진입할 때</td>
+                                        <td>관광지 현장의 실제 QR 코드 스캔 및 방문 횟수 집계</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>audio_play</code></td>
+                                        <td>플레이어에서 재생(▶) 버튼을 처음 누를 때</td>
+                                        <td>진입 후 실제 청취로 이어진 사용자 비율 계산</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>audio_progress_25</code></td>
+                                        <td>오디오 전체 길이의 25% 지점을 청취했을 때</td>
+                                        <td>재생 초기 이탈자 분석</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>audio_progress_50</code></td>
+                                        <td>오디오 전체 길이의 50% 지점을 청취했을 때</td>
+                                        <td>중간 지점 이탈 분석</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>audio_progress_75</code></td>
+                                        <td>오디오 전체 길이의 75% 지점을 청취했을 때</td>
+                                        <td>후반 지점 이탈 분석</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>audio_complete</code></td>
+                                        <td>오디오를 끝까지 다 듣고 완료(100%)했을 때</td>
+                                        <td>콘텐츠의 매력도 및 만족도 지표 (완독 수치)</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- [2] 모바일 기기 전용 초심플 웹 플레이어 화면 뷰 (QR 스캔 전용) -->
+    <div id="mobile-player-view" class="mobile-player-container hide">
+        <div class="mobile-frame">
+            <header class="mobile-header">
+                <span class="heritage-symbol">⚜️</span>
+                <span class="service-name">국가유산 오디오 가이드</span>
+            </header>
+            
+            <main class="mobile-body">
+                <!-- 아날로그 LP 레코드 스타일 스피너 디자인 -->
+                <div class="disk-container">
+                    <div class="vinyl-disk" id="mobile-vinyl">
+                        <div class="vinyl-center">
+                            <span class="vinyl-icon">🎧</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mobile-track-info">
+                    <span class="mobile-track-badge" id="mobile-track-badge">TRACK 01</span>
+                    <h2 class="mobile-track-title" id="mobile-track-title">국가유산 오디오 가이드 #1</h2>
+                    <p class="mobile-track-desc">본 음원은 GitHub Pages 고속 스트리밍 허브에서 제공됩니다.</p>
+                </div>
+
+                <!-- 모바일 플레이어 컨트롤러 -->
+                <div class="mobile-player-controls">
+                    <audio id="mobile-audio-element" preload="metadata"></audio>
+                    
+                    <div class="mobile-time-row">
+                        <span class="mobile-time" id="mobile-time-current">00:00</span>
+                        <div class="mobile-progress-container" id="mobile-progress-container">
+                            <div class="mobile-progress-bar" id="mobile-progress-bar"></div>
+                        </div>
+                        <span class="mobile-time" id="mobile-time-total">00:00</span>
+                    </div>
+
+                    <div class="mobile-buttons-row">
+                        <!-- 10초 뒤로 -->
+                        <button class="btn-control-skip" id="btn-skip-back">⏮ 10s</button>
+                        
+                        <!-- 메인 재생 버튼 -->
+                        <button class="btn-mobile-play" id="btn-mobile-play-pause">▶</button>
+                        
+                        <!-- 10초 앞으로 -->
+                        <button class="btn-control-skip" id="btn-skip-forward">10s ⏭</button>
+                    </div>
+
+                    <!-- 배속 제어 -->
+                    <div class="mobile-speed-row">
+                        <button class="btn-speed active" data-speed="1.0">1.0x</button>
+                        <button class="btn-speed" data-speed="1.2">1.2x</button>
+                        <button class="btn-speed" data-speed="1.5">1.5x</button>
+                    </div>
+                </div>
+            </main>
+
+            <footer class="mobile-footer">
+                <p>© 2026 문화재청 국가유산 오디오 서비스</p>
+            </footer>
+        </div>
+    </div>
+
+    <!-- 오디오 제어 및 페이지 상태 제어 스크립트 -->
+    <script src="app.js"></script>
+</body>
+</html>
